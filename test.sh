@@ -481,18 +481,127 @@ convert_int_to_human_time_tests() {
 
 	funcrun $name -668;
 	printed <<<-11:08;
-
-
-	
-
 	
 }
+
+
+test_numeric_tests() {
+	local name=test_numeric;
+
+	funcrun $name 0;
+	exited 0;
+
+	funcrun $name -0;
+	exited 0;
+
+	funcrun $name 1;
+	exited 0;
+
+	funcrun $name -1;
+	exited 0;
+
+	funcrun $name 456;
+	exited 0;
+
+	funcrun $name -456
+	exited 0;
+
+	funcrun $name 000456
+	exited 0;
+
+	funcrun $name -000456
+	exited 0;
+
+
+
+	funcrun $name 0a;
+	exited 1;
+
+	funcrun $name -a0;
+	exited 1;
+
+	funcrun $name 1b;
+	exited 1;
+
+	funcrun $name -1b;
+	exited 1;
+
+	funcrun $name 45a6;
+	exited 1;
+
+	funcrun $name -45a6
+	exited 1;
+
+	funcrun $name 0004a56
+	exited 1;
+
+	funcrun $name -0004a56
+	exited 1;
+	
+}
+
+
+format_numeric_tests() {
+	local name=format_numeric;
+
+	funcrun $name 0;
+	printed <<<0;
+
+	funcrun $name -0;
+	printed <<<0;
+
+	funcrun $name 1;
+	printed <<<1;
+
+	funcrun $name -1;
+	printed <<<-1;
+
+	funcrun $name 456;
+	printed <<<456;
+
+	funcrun $name -456;
+	printed <<<-456;
+
+	funcrun $name 000456;
+	printed <<<456;
+
+	funcrun $name -000456;
+	printed <<<-456;
+	
+}
+
+
+compute_equation_tests() {
+	local name=compute_equation;
+
+	funcrun $name 2 2 2 + "*";
+	printed <<<8;
+
+	funcrun $name 2 2 + 2 "*";
+	printed <<<8;
+
+	funcrun $name 2 2 "*" 2 +;
+	printed <<<6;
+
+	funcrun $name 2 2 2 "*" +;
+	printed <<<6;
+
+	funcrun $name 7:30 5 "*";
+	printed <<<2250;
+	
+}
+
+
+
+
 
 main() {
 	test_human_time_tests;
 	convert_human_time_to_int_tests;
 	convert_int_to_human_time_tests;
-
+	test_numeric_tests;
+	format_numeric_tests;
+	compute_equation_tests;
 
 
 	echo "# total failed tests: $fail_count";
