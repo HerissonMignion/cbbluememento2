@@ -62,7 +62,7 @@ COMMANDES
 
 		Calcule une équation écrite en *reverse polish notation*, avec
 		support pour les heures.  Les objets qui composent l'équation
-		doivent être passer dans des arguments différents.  C'est
+		doivent êtres passés dans des arguments différents.  C'est
 		préférable d'utiliser -- pour faire arrêter la lecture des
 		options parce que sinon il va être difficile d'effectuer des
 		soustractions.  Calc supporte les 4 opérations de bases +, -,
