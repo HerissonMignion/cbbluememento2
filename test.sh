@@ -12,7 +12,7 @@ stdouterr_filepath=$(mktemp);
 # rouler le script
 run() {
 	echo "### run" "$@";
-	bash cbbluememento2.sh "$@" &> "$stdouterr_filepath";
+	bash cbbluememento2 "$@" &> "$stdouterr_filepath";
 	previous_exit_code=$?;
 }
 
