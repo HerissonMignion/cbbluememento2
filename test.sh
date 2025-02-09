@@ -23,11 +23,15 @@ funcrun() {
 
 
 
+fail_count=0;
+
+
 exited() {
 	local expected_code=$1;
 	if ! [ "$expected_code" == "$previous_exit_code" ]; then
 		echo "ERROR: Expected exit code $expected_code, but it exited with $previous_exit_code";
 		echo;
+		((fail_count++));
 	fi;
 }
 
@@ -42,6 +46,7 @@ printed() {
 		echo "ERROR: but instead got:";
 		echo "$actual";
 		echo;
+		((fail_count++));
 	fi;
 }
 
@@ -487,6 +492,10 @@ main() {
 	test_human_time_tests;
 	convert_human_time_to_int_tests;
 	convert_int_to_human_time_tests;
+
+
+
+	echo "# total failed tests: $fail_count";
 }
 
 
