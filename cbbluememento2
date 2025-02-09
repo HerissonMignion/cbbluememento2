@@ -68,7 +68,7 @@ COMMANDES
 		soustractions.  Calc supporte les 4 opérations de bases +, -,
 		* et /.  Vous pourriez avoir à échapper l'étoile pour ne pas
 		déclancher le filename expansion, en écrivant soit \\* ou "*".
-		Calc supporte que les entiers positif ou négatif, qui sont
+		Calc supporte les entiers positif ou négatif, qui sont
 		considérés comme des minutes, ainsi que des <durée>.  Utiliser
 		l'option --reverse pour inverser le sens de la lecture.
 
