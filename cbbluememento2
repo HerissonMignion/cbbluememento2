@@ -58,24 +58,41 @@ COMMANDES
 			-z scrum 9:30 -z dev 12:00 -z diner 13:00 \\
 			-z dev 17:00
 
-	calc
+	calc -- <équation en polish notation sur plusieurs arguments>...
 
-		TODO
+		Calcule une équation écrite en *reverse polish notation*, avec
+		support pour les heures.  Les objets qui composent l'équation
+		doivent être passer dans des arguments différents.  C'est
+		préférable d'utiliser -- pour faire arrêter la lecture des
+		options parce que sinon il va être difficile d'effectuer des
+		soustractions.  Calc supporte les 4 opérations de bases +, -,
+		* et /.  Vous pourriez avoir à échapper l'étoile pour ne pas
+		déclancher le filename expansion, en écrivant soit \\* ou "*".
+		Calc supporte que les entiers positif ou négatif, qui sont
+		considérés comme des minutes, ainsi que des <durée>.  Utiliser
+		l'option --reverse pour inverser le sens de la lecture.
+
+		EX:
+
+		cbbluememento2 calc -- 7:30 5 \\* 0:30 5 \\* +
 
 OPTIONS
 
-	-s <moment>
-	--start <moment>
+	-s <moment>, --start <moment>
 
 		Sert à indiquer le début de la journée.
 
-	-z <nom> <moment>
-	--zone <nom> <moment>
+	-z <nom> <moment>, --zone <nom> <moment>
 
 		Sert à ajouter une zone de temps à l'horaire.  Les arguments
 		du script sont lus de gauche à droite, et les zones de temps
 		sont ajoutés à la fin de l'horaire, alors il faut indiquer les
 		zones de temps du matin jusqu'au soir.
+
+	--reverse
+
+		Pour la commande calc, inverse le sens de la lecture de
+		l'équation (il va lire de droite à gauche.)
 
 FORMAT
 
