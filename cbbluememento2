@@ -208,7 +208,7 @@ while (($#)); do
 			trailing_args+=(--);
 			break;
 			;;
-		(-*)
+		(-?*)
 			for letter in $(echo "${arg#-}" | grep -o .); do
 				trailing_args+=("-$letter");
 			done;
