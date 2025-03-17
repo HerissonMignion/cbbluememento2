@@ -1,0 +1,319 @@
+
+
+
+
+* semaine 1
+
+** lundi
+
+- 8:00
+  - work lundi 1
+- 9:00
+  - scrum lundi 1
+- 9:15
+  - work lundi 1
+- 12:00
+  - diner lundi 1
+- 13:00
+  - work lundi 1
+- 16:00
+
+
+** mardi
+
+- 8:01
+  - work mardi 1
+- 9:00
+  - scrum mardi 1
+- 9:15
+  - work mardi 1
+- 12:00
+  - diner mardi 1
+- 13:00
+  - work mardi 1
+- 16:00
+
+
+** mercredi
+
+- 8:02
+  - work mercredi 1
+- 9:00
+  - scrum mercredi 1
+- 9:15
+  - work mercredi 1
+- 12:00
+  - diner mercredi 1
+- 13:00
+  - work mercredi 1
+- 16:00
+
+
+** jeudi
+
+- 8:03
+  - work jeudi 1
+- 9:00
+  - scrum jeudi 1
+- 9:15
+  - work jeudi 1
+- 12:00
+  - diner jeudi 1
+- 13:00
+  - work jeudi 1
+- 16:00
+
+
+** vendredi
+
+- 8:04
+  - work vendredi 1
+- 9:00
+  - scrum vendredi 1
+- 9:15
+  - work vendredi 1
+- 12:00
+  - diner vendredi 1
+- 13:00
+  - work vendredi 1
+- 16:00
+
+
+
+
+
+* semaine 2
+
+** lundi
+
+- 8:00
+  - work lundi 2
+- 9:00
+  - scrum lundi 2
+- 9:15
+  - work lundi 2
+- 12:00
+  - diner lundi 2
+- 13:00
+  - work lundi 2
+- 16:00
+
+
+** mardi
+
+- 8:01
+  - work mardi 2
+- 9:00
+  - scrum mardi 2
+- 9:15
+  - work mardi 2
+- 12:00
+  - diner mardi 2
+- 13:00
+  - work mardi 2
+- 16:00
+
+
+** mercredi
+
+- 8:02
+  - work mercredi 2
+- 9:00
+  - scrum mercredi 2
+- 9:15
+  - work mercredi 2
+- 12:00
+  - diner mercredi 2
+- 13:00
+  - work mercredi 2
+- 16:00
+
+
+** jeudi
+
+- 8:03
+  - work jeudi 2
+- 9:00
+  - scrum jeudi 2
+- 9:15
+  - work jeudi 2
+- 12:00
+  - diner jeudi 2
+- 13:00
+  - work jeudi 2
+- 16:00
+
+
+** vendredi
+
+- 8:04
+  - work vendredi 2
+- 9:00
+  - scrum vendredi 2
+- 9:15
+  - work vendredi 2
+- 12:00
+  - diner vendredi 2
+- 13:00
+  - work vendredi 2
+- 16:00
+
+
+
+
+* semaine 3
+
+** lundi
+
+- 8:00
+  - work lundi 3
+- 9:00
+  - scrum lundi 3
+- 9:15
+  - work lundi 3
+- 12:00
+  - diner lundi 3
+- 13:00
+  - work lundi 3
+- 16:00
+
+
+** mardi
+
+- 8:01
+  - work mardi 3
+- 9:00
+  - scrum mardi 3
+- 9:15
+  - work mardi 3
+- 12:00
+  - diner mardi 3
+- 13:00
+  - work mardi 3
+- 16:00
+
+
+** mercredi
+
+- 8:02
+  - work mercredi 3
+- 9:00
+  - scrum mercredi 3
+- 9:15
+  - work mercredi 3
+- 12:00
+  - diner mercredi 3
+- 13:00
+  - work mercredi 3
+- 16:00
+
+
+** jeudi
+
+- 8:03
+  - work jeudi 3
+- 9:00
+  - scrum jeudi 3
+- 9:15
+  - work jeudi 3
+- 12:00
+  - diner jeudi 3
+- 13:00
+  - work jeudi 3
+- 16:00
+
+
+** vendredi
+
+- 8:04
+  - work vendredi 3
+- 9:00
+  - scrum vendredi 3
+- 9:15
+  - work vendredi 3
+- 12:00
+  - diner vendredi 3
+- 13:00
+  - work vendredi 3
+- 16:00
+
+
+
+* semaine 4
+
+** lundi
+
+- 8:00
+  - work lundi 4
+- 9:00
+  - scrum lundi 4
+- 9:15
+  - work lundi 4
+- 12:00
+  - diner lundi 4
+- 13:00
+  - work lundi 4
+- 16:00
+
+
+** mardi
+
+- 8:01
+  - work mardi 4
+- 9:00
+  - scrum mardi 4
+- 9:15
+  - work mardi 4
+- 12:00
+  - diner mardi 4
+- 13:00
+  - work mardi 4
+- 16:00
+
+
+** mercredi
+
+- 8:02
+  - work mercredi 4
+- 9:00
+  - scrum mercredi 4
+- 9:15
+  - work mercredi 4
+- 12:00
+  - diner mercredi 4
+- 13:00
+  - work mercredi 4
+- 16:00
+
+
+** jeudi
+
+- 8:03
+  - work jeudi 4
+- 9:00
+  - scrum jeudi 4
+- 9:15
+  - work jeudi 4
+- 12:00
+  - diner jeudi 4
+- 13:00
+  - work jeudi 4
+- 16:00
+
+
+** vendredi
+
+- 8:04
+  - work vendredi 4
+- 9:00
+  - scrum vendredi 4
+- 9:15
+  - work vendredi 4
+- 12:00
+  - diner vendredi 4
+- 13:00
+  - work vendredi 4
+- 16:00
+
+
+
