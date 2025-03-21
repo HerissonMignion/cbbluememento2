@@ -187,7 +187,7 @@ cat_from_to_begin() {
 	done;
 	while IFS="" read -r line; do
 		[[ "$line" == "$end"* ]] && break;
-		echo "$line";
+		printf "%s\n" "$line";
 	done;
 }
 
