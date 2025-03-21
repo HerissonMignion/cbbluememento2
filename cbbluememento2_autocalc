@@ -97,6 +97,7 @@ unset arg letter;
 commands=(
 	help
 	autocalc
+	list
 );
 
 
@@ -331,7 +332,18 @@ command_autocalc() {
 	
 }
 
+command_list() {
+	local hfile=$1;
+	shift;
 
+	local semaines=();
+	push_file_weeks_to_ptr semaines "$hfile";
+
+	local s;
+	for s in "${semaines[@]}"; do
+		printf "%s\n" "$s";
+	done;
+}
 
 
 command_help() {
