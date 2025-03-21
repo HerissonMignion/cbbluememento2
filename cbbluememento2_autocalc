@@ -2,9 +2,19 @@
 
 
 
-SCRIPT_PATH=$(realpath "$0");
+# SCRIPT_PATH=$(realpath "$0");
+
+CBBLUEMEMENTO2_COMMAND="cbbluememento2";
 
 
+
+
+
+
+# la raison pourquoi ces fonctionnalités sont dans un script différent
+# du script principale sont que ma notation de mes heures de travail
+# est spécifique à moi et que le bash ici sera probablement de moin
+# bonne qualité.
 
 
 
@@ -84,6 +94,11 @@ unset arg letter;
 
 
 
+commands=(
+	help
+	autocalc
+);
+
 
 reverse_list_to_ptr() {
 	local -n ptr=$1;
@@ -130,6 +145,21 @@ push_to_ptr() {
 
 
 
+# test si stdin a une ligne qui commence par le texte donné
+test_has_line_begin() {
+	local str=$1;
+	shift;
+
+	local line;
+	while IFS="" read -r line; do
+		if [[ "$line" == "$str"* ]]; then
+			return 0;
+		fi;
+	done;
+
+	return 1;
+}
+
 
 test_semaine_has_section() {
 	local hfile=$1;
@@ -138,9 +168,29 @@ test_semaine_has_section() {
 	shift 3;
 
 	get_semaine "$hfile" "$semaine_name" | \
-		grep -q "^\*\* $section_name";
-	
+		test_has_line_begin "** $section_name";	
 }
+
+
+
+# printer le stdin, d'une ligne qui commence par beg jusqu'à la ligne
+# qui termine par end, excluant les ligne beg et end elles-mêmes.
+cat_from_to_begin() {
+	local beg=$1;
+	local end=$2;
+	shift 2;
+
+	local line;
+	while IFS="" read -r line; do
+		[[ "$line" == "$beg"* ]] && break;
+	done;
+	while IFS="" read -r line; do
+		[[ "$line" == "$end"* ]] && break;
+		echo "$line";
+	done;
+}
+
+
 
 get_semaine_section() {
 	local hfile=$1;
@@ -148,16 +198,7 @@ get_semaine_section() {
 	local section_name=$3;
 	shift 3;
 
-	{
-		get_semaine "$hfile" "$semaine_name";
-		echo;
-		echo;
-		echo "** xxxxxxxxxxx";
-	} | grep -A 1000 "^\*\* $section_name" | \
-		grep -B 1000 -m 2 "^\*" | \
-		grep -v "^\*" | \
-		grep . | \
-		grep -v "^#";
+	get_semaine "$hfile" "$semaine_name" | cat_from_to_begin "** $section_name" "** ";
 }
 
 
@@ -166,14 +207,7 @@ get_semaine() {
 	local semaine_name=$2;
 	shift 2;
 
-	{
-		cat "$hfile";
-		echo;
-		echo;
-		echo "* semaine 100000";
-	} | grep -A 1000 -F "* semaine $semaine_name" | \
-		grep -m 2 -B 1000 '^\* ' | \
-		grep -v '^\* ';
+	cat "$hfile" | cat_from_to_begin "* $semaine_name" "* ";
 }
 
 
@@ -219,20 +253,38 @@ compute_semaine_section() {
 
 	done;
 
-    "$SCRIPT_PATH" "${sub_args[@]}";
+	"$CBBLUEMEMENTO2_COMMAND" "${sub_args[@]}";
 	
 }
 
 
 
-command_autocalc() {
-	# je donne beaucoup moins de soin à cette commande qu'aux autres
-	# commandes.
 
+push_file_weeks_to_ptr() {
+	local -n ptr=$1;
+	local hfile=$2;
+	shift 2;
+
+	# ptr doit déjà être une liste.
+
+	local line;
+	while IFS="" read -r line; do
+		ptr=(
+			"${ptr[@]}"
+			"${line#'* '}"
+		);
+	done < <(cat "$hfile" | grep "^\* ");
+	
+}
+
+
+
+
+command_autocalc() {
 	# WARNING: tout les "nom" de semaine DOIVENT êtres unique.
 
 	# le fichier est organisé en premier par des semaines (lignes qui
-	# commencent par "* semaine"). ENSUITE c'est séparé en section
+	# commencent par "* "). ENSUITE c'est séparé en section
 	# (lignes qui commencent par "** ").
 
 	(($# >= 1)) || quit_because 1 "You must provide a file.";
@@ -244,19 +296,20 @@ command_autocalc() {
 		quit_because 1 "The file '$hfile' doesn't exist.";
 
 
-	local semaine_names=(
-		$(cat "$hfile" | grep "^\* semaine" | awk '{ print $3; }')
-	);
+	local semaine_names=();
+	push_file_weeks_to_ptr semaine_names "$hfile";
 
-	# echo "${semaine_names[@]}";
-
+	# for asdf in "${semaine_names[@]}"; do
+	# 	echo "$asdf";
+	# done;
+	# return 0;
 
 	for semaine in "${semaine_names[@]}"; do
 		echo "==== $semaine";
 
 		for section in special samedi dimanche lundi mardi mercredi jeudi vendredi; do
 
-			test_semaine_has_section "$hfile" $semaine $section || continue;
+			test_semaine_has_section "$hfile" "$semaine" "$section" || continue;
 
 			echo "==== ==== $section";
 
@@ -267,10 +320,9 @@ command_autocalc() {
 			else
 				
 				# get_semaine_section "$hfile" $semaine $section;
-				compute_semaine_section "$hfile" $semaine $section;
+				compute_semaine_section "$hfile" "$semaine" "$section";
 
 				echo;
-				
 
 			fi;
 		done;
@@ -282,9 +334,28 @@ command_autocalc() {
 
 
 
-main() {
+command_help() {
+	help
+}
 
-	true;
+
+main() {
+	if (($# < 1)); then
+		quit_because 1 "No command provided. See --help.";
+	fi;
+
+	local command=$1;
+	shift;
+
+	local cmd;
+	for cmd in "${commands[@]}"; do
+		if [ "$cmd" == "$command" ]; then
+			"command_$cmd" "$@";
+			return $?;
+		fi;
+	done;
+
+	quit_because 1 "Unknown command: $command";
 }
 
 
