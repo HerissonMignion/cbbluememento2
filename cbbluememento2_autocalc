@@ -29,6 +29,19 @@ DESCRIPTION
 
 	TODO
 
+COMMANDES
+
+	autocalc <fichier> <semaines>...
+	autocalc <fichier> --all
+
+		Automatiquement calculer les semaines indiqués.  Si le nom
+		d'une semaine contient un espace ou d'autres caractères
+		spéciaux, n'oubliez pas de quoter.
+
+	list <fichier>
+
+		Lister les semaines existantes dans le fichier.
+
 HELP
 }
 
@@ -67,6 +80,11 @@ while (($#)); do
 done;
 set -- "${trailing_args[@]}" "$@";
 
+
+
+opt_all=0;
+
+
 trailing_args=();
 while (($#)); do
 	arg=$1;
@@ -75,6 +93,9 @@ while (($#)); do
 		(-h|--help)
 			help;
 			exit 0;
+			;;
+		(--all)
+			opt_all=1;
 			;;
 		(--)
 			break;
@@ -269,7 +290,7 @@ push_file_weeks_to_ptr() {
 	# ptr doit déjà être une liste.
 
 	local line;
-	while IFS="" read -r line; do
+	while IFS="" read -r line || [ -n "$line" ]; do
 		ptr=(
 			"${ptr[@]}"
 			"${line#'* '}"
@@ -293,12 +314,16 @@ command_autocalc() {
 	local hfile=$1;
 	shift;
 
-	[ -f "$hfile" ] || \
+	[ -f "$hfile" ] ||
 		quit_because 1 "The file '$hfile' doesn't exist.";
 
 
 	local semaine_names=();
-	push_file_weeks_to_ptr semaine_names "$hfile";
+	if ((opt_all)); then
+		push_file_weeks_to_ptr semaine_names "$hfile";
+	else
+		semaine_names=("$@");
+	fi;
 
 	# for asdf in "${semaine_names[@]}"; do
 	# 	echo "$asdf";
@@ -327,6 +352,7 @@ command_autocalc() {
 
 			fi;
 		done;
+		echo;
 		
 	done;
 	
