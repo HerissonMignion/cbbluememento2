@@ -27,7 +27,9 @@ SYNOPSIS
 
 DESCRIPTION
 
-	TODO
+	Prend un ficheir .org qui est dans mon format pour noter mes
+	heures, lit les semaines et les jours de la semaine, et calcule la
+	somme de chaque "groupe" de chaque jours automatiquement.
 
 COMMANDES
 

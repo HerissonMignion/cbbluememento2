@@ -1,0 +1,104 @@
+#!/bin/guile \
+--no-auto-compile -e main -s
+!#
+
+;; TODO: réécrire quand je serai meilleur en lisp
+
+;; TODO: tester les builtin de parsin d'option avec guile
+
+
+(use-modules (ice-9 rdelim) (ice-9 regex))
+
+(define (print-help)
+  (display "TODO: help")
+  (newline))
+
+
+(define (assert-file-exists filepath)
+  (unless (access? filepath F_OK)
+	(display (format #f "Le fichier n'existe pas: \"~a\"\n" filepath))
+	(exit 1)))
+
+
+
+
+;; retourne toutes les lignes du fichier en une liste de string
+(define (read-whole-file filename)
+  (let ((file-port (open-input-file filename)))
+	(let loop ()
+	  (let ((line (read-line file-port)))
+		(if (eof-object? line)
+			(begin
+			  (close-port file-port)
+			  '())
+			(cons line (loop)))))))
+
+
+;; retourne un liste de string de toutes les semaines
+(define (list-semaines all-lines)
+  (let loop ((current-line all-lines))
+	(when (not (null? current-line))
+	  (when (string-match "^\\* .*$" (car current-line))
+		(display (car current-line))
+		(newline))
+	  
+	  (loop (cdr current-line)))))
+
+
+
+
+(define (command-list . args)
+  (unless (> (length args) 0)
+	(display "You must provide a file\n")
+	(exit 1))
+  (let ((filepath (car args)))
+	(assert-file-exists filepath)
+	(let ((all-lines (read-whole-file filepath)))
+	  (list-semaines all-lines))))
+
+(define (command-autocalc . args)
+  #f)
+
+
+(define (main . _)
+  (let ((args (cdr (command-line)))
+		(trailing-args (list))
+		(opt-all #f))
+	(let loop-args ((args-left args))
+	  (unless (null? args-left)
+		(let ((current-arg (car args-left)))
+		  (cond
+		   ((string=? current-arg "--")
+			(set! trailing-args (append trailing-args (cdr args-left)))
+			(loop-args '()))
+		   (else
+			(cond
+			 ((string=? current-arg "--help")
+			  (print-help)
+			  (exit 0))
+			 ((string=? current-arg "--all")
+			  (set! opt-all #t))
+			 (else
+			  (set! trailing-args (append trailing-args (list current-arg)))))
+			(loop-args (cdr args-left)))))))
+
+	(cond
+	 ((<= (length trailing-args) 0)
+	  (display "You must provide a command\n")
+	  (exit 1))
+	 (else
+	  (let ((command (car trailing-args))
+			(command-args (cdr trailing-args)))
+		(cond
+		 ((string=? command "list")
+		  (apply command-list command-args))
+		 ((string=? command "autocalc")
+		  (apply command-autocalc command-args))
+		 (else
+		  (display (format #f "Unknown command: ~a\n" command))
+		  (exit 1))))))))
+
+
+
+
+
