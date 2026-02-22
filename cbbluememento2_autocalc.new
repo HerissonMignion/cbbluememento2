@@ -69,9 +69,11 @@
   (let ((next-cons list))
 	(values
 	 (lambda ()
-	   (let ((ret (car next-cons)))
-		 (set! next-cons (cdr next-cons))
-		 ret)))))
+	   (if (null? next-cons)
+		   (eof-object)
+		   (let ((ret (car next-cons)))
+			 (set! next-cons (cdr next-cons))
+			 ret))))))
 
 
 ;; proc est appelé avec (elem, previous).
@@ -127,6 +129,7 @@
 ;; fichier.  exclus la déclaration de la week et la déclaration de
 ;; la week suivante (exclus les lignes commençant par "* ").
 (define (get-week filename week-name)
+  ;; TODO: optimiser le check ici pour ne pas lire le fichier 2 fois.
   (if (not (file-contains-week? filename week-name))
 	  #f
 	  (let-values (((read-line-iter close-file) (make-iter-read-file filename)))
@@ -150,22 +153,38 @@
 
 
 
+(define (week-has-section? week-lines section-name)
+  (let-values (((read-line-iter) (make-iter-read-list week-lines)))
+	(iter-forward-until
+	 (lambda (current-line)
+	   (string=? current-line (string-append "** " section-name)))
+	 read-line-iter)))
+
+
+
 ;; retourne un section dans une semaine (délimité par une ligne
 ;; commençant par "** "). il faut seulement passer les ligne de la
 ;; semaine, et non pas tout le fichier.
 (define (get-week-section week-lines section-name)
-  (let find-section-loop ((current-line-cons week-lines))
-	(cond
-	 ((null? current-line-cons) '())
-	 ((string=? (string-append "** " section-name) (car current-line-cons))
-	  (let extract-section-loop ((current-line-cons (cdr current-line-cons)))
-		(if (or (null? current-line-cons) (string-match "^\\*\\* .*$" (car current-line-cons)))
-			'()
-			(cons (car current-line-cons) (extract-section-loop (cdr current-line-cons))))))
-	 (else
-	  (find-section-loop (cdr current-line-cons))))))
+  (if (not (week-has-section? week-lines section-name))
+	  #f
+	  (let-values (((read-line-iter) (make-iter-read-list week-lines)))
+		(let ((reversed-section-lines '()))
+		  (iter-forward-until
+		   (lambda (current-line)
+			 (string=? current-line (string-append "** " section-name)))
+		   read-line-iter)
 
+		  (iter-forward-until
+		   (lambda (current-line)
+			 (if (string-prefix? "** " current-line)
+				 (begin #t)
+				 (begin
+				   (set! reversed-section-lines (cons current-line reversed-section-lines))
+				   #f)))
+		   read-line-iter)
 
+		  (reverse reversed-section-lines)))))
 
 
 
@@ -185,57 +204,59 @@
 
 (define (autocalc-week week-lines)
   (for-each (lambda (section-name)
-			  (display "==== ==== ")
-			  (display section-name)
-			  (newline)
+			  (when (week-has-section? week-lines section-name)
+				(display "==== ==== ")
+				(display section-name)
+				(newline)
 
-			  (letrec* ((find-next-time (lambda (next-line-cons)
-										  (let find-next-time-loop ((next-line-cons next-line-cons))
-											(if (null? next-line-cons)
-												'()
-												(if (string-match "^ *- [0-9]?[0-9]:[0-9][0-9] *$"
-																  (car next-line-cons))
-													(cons
-													 (match:substring
-													  (string-match
-													   "^ *- ([0-9]?[0-9]:[0-9][0-9]) *$"
-													   (car next-line-cons)) 1)
-													 (get-next-zone (cdr next-line-cons)))
-													(find-next-time-loop (cdr next-line-cons)))))))
-						(get-next-zone (lambda (next-line-cons)
-										 (let find-zone-name-loop ((next-line-cons next-line-cons))
-										   (if (null? next-line-cons)
-											   '()
-											   (if (not (string-match "^ *- .*$"
-																	  (car next-line-cons)))
-												   (find-zone-name-loop (cdr next-line-cons))
-												   (let ((zone-name-line
-														  (match:substring
-														   (string-match "^ *- ([^ ]*\\b)"
-																		 (car next-line-cons)) 1))
-														 (next-time (find-next-time
-																	 (cdr next-line-cons))))
-													 (if (null? next-time)
-														 '()
-														 (cons "-z"
-															   (cons zone-name-line
-																	 next-time)))))))))
-						(args (cons
-							   "group"
-							   (cons
-								"-s"
-								(find-next-time
-								 (get-week-section week-lines section-name))))))
+				(letrec*
+					((find-next-time (lambda (next-line-cons)
+									   (let find-next-time-loop ((next-line-cons next-line-cons))
+										 (if (null? next-line-cons)
+											 '()
+											 (if (string-match "^ *- [0-9]?[0-9]:[0-9][0-9] *$"
+															   (car next-line-cons))
+												 (cons
+												  (match:substring
+												   (string-match
+													"^ *- ([0-9]?[0-9]:[0-9][0-9]) *$"
+													(car next-line-cons)) 1)
+												  (get-next-zone (cdr next-line-cons)))
+												 (find-next-time-loop (cdr next-line-cons)))))))
+					 (get-next-zone (lambda (next-line-cons)
+									  (let find-zone-name-loop ((next-line-cons next-line-cons))
+										(if (null? next-line-cons)
+											'()
+											(if (not (string-match "^ *- .*$"
+																   (car next-line-cons)))
+												(find-zone-name-loop (cdr next-line-cons))
+												(let ((zone-name-line
+													   (match:substring
+														(string-match "^ *- ([^ ]*\\b)"
+																	  (car next-line-cons)) 1))
+													  (next-time (find-next-time
+																  (cdr next-line-cons))))
+												  (if (null? next-time)
+													  '()
+													  (cons "-z"
+															(cons zone-name-line
+																  next-time)))))))))
+					 (args (cons
+							"group"
+							(cons
+							 "-s"
+							 (find-next-time
+							  (get-week-section week-lines section-name))))))
 
-				;; (write args)
-				;; (newline)
-				;; (print-list-to-stdout
-				;;  (get-week-section week-lines section-name))
+				  ;; (write args)
+				  ;; (newline)
+				  ;; (print-list-to-stdout
+				  ;;  (get-week-section week-lines section-name))
 
-				(apply system* (cons "cbbluememento2" args)))
+				  (apply system* (cons "cbbluememento2" args)))
 
-			  
-			  (newline))
+				
+				(newline)))
 			'("dimanche"
 			  "lundi"
 			  "mardi"
