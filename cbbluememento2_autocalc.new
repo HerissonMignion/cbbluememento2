@@ -1,13 +1,8 @@
 #!/bin/guile \
---no-auto-compile -e main -s
+--auto-compile -e main -s
 !#
 
-;; TODO: réécrire quand je serai meilleur en lisp
-
 ;; TODO: tester les builtin de parsing d'option avec guile
-
-;; TODO: réécrire avec des callback pour ne pas obliger à garder tout
-;; le fichier en mémoire en même temps.
 
 
 (use-modules
@@ -15,7 +10,6 @@
  (ice-9 regex)
  (ice-9 binary-ports)
  (srfi srfi-11))
-
 
 
 
@@ -202,68 +196,61 @@
 
 
 
+(define (autocalc-week-section section-lines)
+  (let ((reversed-args '("group" "cbbluememento2")))
+	(let-values (((read-line-iter) (make-iter-read-list section-lines)))
+	  (let ((is-first-time? #t)
+			   (period-name #f))
+		(iter-fold
+		 (lambda (current-line _)
+		   (cond
+			;; MAYBE TODO: mettre un warning si les minutes dépasse 59
+			((string-match "^ *- [0-9]?[0-9]:[0-9][0-9] *$" current-line)
+			 (let ((extracted-time (match:substring
+									 (string-match "^ *- ([0-9]?[0-9]:[0-9][0-9]) *$"
+												   current-line) 1)))
+			   (if is-first-time?
+				   (begin
+					 (set! reversed-args (cons "-s" reversed-args))
+					 (set! reversed-args (cons extracted-time reversed-args)))
+				   (begin
+					 (set! reversed-args (cons "-z" reversed-args))
+					 (set! reversed-args (cons (or period-name "noname") reversed-args))
+					 (set! reversed-args (cons extracted-time reversed-args)))))
+			 
+			 (set! is-first-time? #f)
+			 (set! period-name #f))
+
+			;; MAYBE TODO: améliorer les regex ici?
+			((string-match "^ *- .*$" current-line)
+			 (when (not period-name)
+			   (set! period-name
+					 (match:substring (string-match "^ *- ([^ ]*\\b)" current-line)
+									  1)))))
+		   #t)
+		 #t
+		 read-line-iter)
+		(apply system* (reverse reversed-args))
+		(newline)))))
+
+
 (define (autocalc-week week-lines)
-  (for-each (lambda (section-name)
-			  (when (week-has-section? week-lines section-name)
-				(display "==== ==== ")
-				(display section-name)
-				(newline)
+  (for-each
+   (lambda (section-name)
+	 (when (week-has-section? week-lines section-name)
+	   (display "==== ==== ")
+	   (display section-name)
+	   (newline)
+	   (let ((section-lines (get-week-section week-lines section-name)))
+		 (autocalc-week-section section-lines))))
+   '("dimanche"
+	 "lundi"
+	 "mardi"
+	 "mercredi"
+	 "jeudi"
+	 "vendredi"
+	 "samedi")))
 
-				(letrec*
-					((find-next-time (lambda (next-line-cons)
-									   (let find-next-time-loop ((next-line-cons next-line-cons))
-										 (if (null? next-line-cons)
-											 '()
-											 (if (string-match "^ *- [0-9]?[0-9]:[0-9][0-9] *$"
-															   (car next-line-cons))
-												 (cons
-												  (match:substring
-												   (string-match
-													"^ *- ([0-9]?[0-9]:[0-9][0-9]) *$"
-													(car next-line-cons)) 1)
-												  (get-next-zone (cdr next-line-cons)))
-												 (find-next-time-loop (cdr next-line-cons)))))))
-					 (get-next-zone (lambda (next-line-cons)
-									  (let find-zone-name-loop ((next-line-cons next-line-cons))
-										(if (null? next-line-cons)
-											'()
-											(if (not (string-match "^ *- .*$"
-																   (car next-line-cons)))
-												(find-zone-name-loop (cdr next-line-cons))
-												(let ((zone-name-line
-													   (match:substring
-														(string-match "^ *- ([^ ]*\\b)"
-																	  (car next-line-cons)) 1))
-													  (next-time (find-next-time
-																  (cdr next-line-cons))))
-												  (if (null? next-time)
-													  '()
-													  (cons "-z"
-															(cons zone-name-line
-																  next-time)))))))))
-					 (args (cons
-							"group"
-							(cons
-							 "-s"
-							 (find-next-time
-							  (get-week-section week-lines section-name))))))
-
-				  ;; (write args)
-				  ;; (newline)
-				  ;; (print-list-to-stdout
-				  ;;  (get-week-section week-lines section-name))
-
-				  (apply system* (cons "cbbluememento2" args)))
-
-				
-				(newline)))
-			'("dimanche"
-			  "lundi"
-			  "mardi"
-			  "mercredi"
-			  "jeudi"
-			  "vendredi"
-			  "samedi")))
 
 
 (define (command-autocalc . args)
@@ -272,11 +259,16 @@
 	(exit 1))
   (let ((filepath (car args))
 		(week-name (cadr args)))
-	(let ((week-lines (get-week filepath week-name)))
+	(if (not (file-contains-week? filepath week-name))
+		(begin
+		  (display (format #f "La semaine \"~a\" n'existe pas.\n" week-name))
+		  (exit 1))
+		(begin
+		  (let ((week-lines (get-week filepath week-name)))
 	  (display "==== ")
 	  (display week-name)
 	  (newline)
-	  (autocalc-week week-lines))))
+	  (autocalc-week week-lines))))))
 
 
 (define (main . _)
