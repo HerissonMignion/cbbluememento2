@@ -16,7 +16,29 @@
 
 
 (define (print-help)
-  (display "TODO: help")
+  (display "SYNOPSIS
+
+        cbbluememento2_autocalc <commande> [<option>]...
+
+DESCRIPTION
+
+        Prend un ficheir .org qui est dans mon format pour noter mes
+        heures, lit les semaines et les jours de la semaine, et calcule la
+        somme de chaque \"groupe\" de chaque jours automatiquement.
+
+COMMANDES
+
+        autocalc <fichier> <semaine>
+        autocalc <fichier> --all
+
+                Automatiquement calculer la semaine indiquée.  Si le
+                nom d'une semaine contient un espace ou d'autres
+                caractères spéciaux, n'oubliez pas de quoter.
+
+        list <fichier>
+
+                Lister les semaines existantes dans le fichier.
+")
   (newline))
 
 
