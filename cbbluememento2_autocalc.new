@@ -37,18 +37,16 @@
 		  (loop (cdr current-line-cons))))))
 
 
-
-
-;; retourne toutes les lignes du fichier en une liste de string
-(define (read-whole-file filename)
-  (let ((file-port (open-input-file filename)))
-	(let loop ()
-	  (let ((line (read-line file-port)))
-		(if (eof-object? line)
-			(begin
-			  (close-port file-port)
-			  '())
-			(cons line (loop)))))))
+;; ;; retourne toutes les lignes du fichier en une liste de string
+;; (define (read-whole-file filename)
+;;   (let ((file-port (open-input-file filename)))
+;; 	(let loop ()
+;; 	  (let ((line (read-line file-port)))
+;; 		(if (eof-object? line)
+;; 			(begin
+;; 			  (close-port file-port)
+;; 			  '())
+;; 			(cons line (loop)))))))
 
 
 (define (make-iter-read-file filename)
