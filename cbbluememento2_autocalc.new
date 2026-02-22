@@ -4,7 +4,10 @@
 
 ;; TODO: réécrire quand je serai meilleur en lisp
 
-;; TODO: tester les builtin de parsin d'option avec guile
+;; TODO: tester les builtin de parsing d'option avec guile
+
+;; TODO: réécrire avec des callback pour ne pas obliger à garder tout
+;; le fichier en mémoire en même temps.
 
 
 (use-modules (ice-9 rdelim) (ice-9 regex))
@@ -22,6 +25,19 @@
 
 
 
+(define (print-list-to-stdout lines)
+  (let loop ((current-line-cons lines))
+	(if (null? current-line-cons)
+		#f
+		(begin
+		  (when (string? (car current-line-cons))
+			(display (car current-line-cons))
+			(newline))
+		  (loop (cdr current-line-cons))))))
+
+
+
+
 ;; retourne toutes les lignes du fichier en une liste de string
 (define (read-whole-file filename)
   (let ((file-port (open-input-file filename)))
@@ -34,30 +50,139 @@
 			(cons line (loop)))))))
 
 
-;; retourne un liste de string de toutes les semaines
-(define (list-semaines all-lines)
-  (let loop ((current-line all-lines))
-	(when (not (null? current-line))
-	  (when (string-match "^\\* .*$" (car current-line))
-		(display (car current-line))
-		(newline))
-	  
-	  (loop (cdr current-line)))))
+;; retourne un liste de string de toutes les weeks
+(define (list-weeks all-lines)
+  (let loop ((current-line-cons all-lines))
+	(if (null? current-line-cons)
+		'()
+		(if (string-match "^\\* .*$" (car current-line-cons))
+			(cons (substring (car current-line-cons) 2)
+				  (loop (cdr current-line-cons)))
+			(loop (cdr current-line-cons))))))
+
+
+;; retourne la liste des lignes qui composent cette week dans le
+;; fichier.  exclus la déclaration de la week et la déclaration de
+;; la week suivante (exclus les lignes commençant par "* ").
+(define (get-week all-lines week-name)
+  (let find-week-loop ((current-line-cons all-lines))
+	(cond
+	 ((null? current-line-cons) '())
+	 ((string=? (string-append "* " week-name) (car current-line-cons))
+		(begin
+		  (let extract-week-loop ((current-line-cons (cdr current-line-cons)))
+			(if (or (null? current-line-cons) (string-match "^\\* .*$" (car current-line-cons)))
+				'()
+				(cons (car current-line-cons) (extract-week-loop (cdr current-line-cons)))))))
+	 (else
+	  (find-week-loop (cdr current-line-cons))))))
+
+
+;; retourne un section dans une semaine (délimité par une ligne
+;; commençant par "** "). il faut seulement passer les ligne de la
+;; semaine, et non pas tout le fichier.
+(define (get-week-section week-lines section-name)
+  (let find-section-loop ((current-line-cons week-lines))
+	(cond
+	 ((null? current-line-cons) '())
+	 ((string=? (string-append "** " section-name) (car current-line-cons))
+	  (let extract-section-loop ((current-line-cons (cdr current-line-cons)))
+		(if (or (null? current-line-cons) (string-match "^\\*\\* .*$" (car current-line-cons)))
+			'()
+			(cons (car current-line-cons) (extract-section-loop (cdr current-line-cons))))))
+	 (else
+	  (find-section-loop (cdr current-line-cons))))))
+
 
 
 
 
 (define (command-list . args)
-  (unless (> (length args) 0)
+  (unless (>= (length args) 1)
 	(display "You must provide a file\n")
 	(exit 1))
   (let ((filepath (car args)))
 	(assert-file-exists filepath)
-	(let ((all-lines (read-whole-file filepath)))
-	  (list-semaines all-lines))))
+	(print-list-to-stdout
+	 (list-weeks
+	  (read-whole-file filepath)))))
+
+
+
+
+(define (autocalc-week week-lines)
+  (for-each (lambda (section-name)
+			  (display "==== ==== ")
+			  (display section-name)
+			  (newline)
+
+			  (letrec* ((find-next-time (lambda (next-line-cons)
+										  (let find-next-time-loop ((next-line-cons next-line-cons))
+											(if (null? next-line-cons)
+												'()
+												(if (string-match "^ *- [0-9]?[0-9]:[0-9][0-9] *$"
+																  (car next-line-cons))
+													(cons
+													 (match:substring
+													  (string-match
+													   "^ *- ([0-9]?[0-9]:[0-9][0-9]) *$"
+													   (car next-line-cons)) 1)
+													 (get-next-zone (cdr next-line-cons)))
+													(find-next-time-loop (cdr next-line-cons)))))))
+						(get-next-zone (lambda (next-line-cons)
+										 (let find-zone-name-loop ((next-line-cons next-line-cons))
+										   (if (null? next-line-cons)
+											   '()
+											   (if (not (string-match "^ *- .*$"
+																	  (car next-line-cons)))
+												   (find-zone-name-loop (cdr next-line-cons))
+												   (let ((zone-name-line
+														  (match:substring
+														   (string-match "^ *- ([^ ]*\\b)"
+																		 (car next-line-cons)) 1))
+														 (next-time (find-next-time
+																	 (cdr next-line-cons))))
+													 (if (null? next-time)
+														 '()
+														 (cons "-z"
+															   (cons zone-name-line
+																	 next-time)))))))))
+						(args (cons
+							   "group"
+							   (cons
+								"-s"
+								(find-next-time
+								 (get-week-section week-lines section-name))))))
+
+				;; (write args)
+				;; (newline)
+				;; (print-list-to-stdout
+				;;  (get-week-section week-lines section-name))
+
+				(apply system* (cons "cbbluememento2" args)))
+
+			  
+			  (newline))
+			'("dimanche"
+			  "lundi"
+			  "mardi"
+			  "mercredi"
+			  "jeudi"
+			  "vendredi"
+			  "samedi")))
+
 
 (define (command-autocalc . args)
-  #f)
+  (unless (>= (length args) 2)
+	(display "You must provide a file and a week name\n")
+	(exit 1))
+  (let ((filepath (car args))
+		(week-name (cadr args)))
+	(let ((week-lines (get-week (read-whole-file filepath) week-name)))
+	  (display "==== ")
+	  (display week-name)
+	  (newline)
+	  (autocalc-week week-lines))))
 
 
 (define (main . _)
