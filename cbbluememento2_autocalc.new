@@ -10,7 +10,14 @@
 ;; le fichier en mémoire en même temps.
 
 
-(use-modules (ice-9 rdelim) (ice-9 regex))
+(use-modules
+ (ice-9 rdelim)
+ (ice-9 regex)
+ (ice-9 binary-ports)
+ (srfi srfi-11))
+
+
+
 
 (define (print-help)
   (display "TODO: help")
@@ -50,15 +57,44 @@
 			(cons line (loop)))))))
 
 
-;; retourne un liste de string de toutes les weeks
-(define (list-weeks all-lines)
-  (let loop ((current-line-cons all-lines))
-	(if (null? current-line-cons)
-		'()
-		(if (string-match "^\\* .*$" (car current-line-cons))
-			(cons (substring (car current-line-cons) 2)
-				  (loop (cdr current-line-cons)))
-			(loop (cdr current-line-cons))))))
+(define (make-iter-read-file filename)
+  (let ((file-port (open-input-file filename)))
+	(values
+	 (lambda ()
+	   (read-line file-port))
+	 (lambda ()
+	   (close-port file-port)))))
+
+(define (make-iter-read-list list)
+  (let ((next-cons list))
+	(values
+	 (lambda ()
+	   (let ((ret (car next-cons)))
+		 (set! next-cons (cdr next-cons))
+		 ret)))))
+
+
+;; proc est appelé avec (elem, previous).
+(define (iter-fold proc init next-proc)
+  (let loop ((ret init))
+	(let ((val (next-proc)))
+	  (if (eof-object? val)
+		  (begin ret)
+		  (begin
+			(loop (proc val ret)))))))
+
+
+;; retourne une liste de string de toutes les weeks
+(define (list-weeks read-line-iter)
+  (reverse
+   (iter-fold
+	(lambda (current-line ret)
+	  (if (string-prefix? "* " current-line)
+		  (cons (string-drop current-line 2) ret)
+		  ret))
+	'()
+	read-line-iter)))
+
 
 
 ;; retourne la liste des lignes qui composent cette week dans le
@@ -103,9 +139,10 @@
 	(exit 1))
   (let ((filepath (car args)))
 	(assert-file-exists filepath)
-	(print-list-to-stdout
-	 (list-weeks
-	  (read-whole-file filepath)))))
+	(let-values (((read-line-iter close-file) (make-iter-read-file filepath)))
+	  (print-list-to-stdout
+	   (list-weeks read-line-iter))
+	  (close-file))))
 
 
 
