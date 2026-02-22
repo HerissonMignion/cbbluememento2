@@ -304,15 +304,15 @@
 ** vendredi
 
 - 8:04
-  - work vendredi 4
+  - work4 vendredi 4
 - 9:00
   - scrum vendredi 4
 - 9:15
-  - work vendredi 4
+  - work4 vendredi 4
 - 12:00
   - diner vendredi 4
 - 13:00
-  - work vendredi 4
+  - work4 vendredi 4
 - 16:00
 
 

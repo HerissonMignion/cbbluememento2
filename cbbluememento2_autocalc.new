@@ -83,6 +83,19 @@
 		  (begin
 			(loop (proc val ret)))))))
 
+;; returns false si la fin de l'itérateur a été atteint
+(define (iter-forward-while predicate next-proc)
+  (let loop ()
+	(let ((current-value (next-proc)))
+	  (if (eof-object? current-value)
+		  #f
+		  (if (predicate current-value)
+			  (loop)
+			  #t)))))
+
+(define (iter-forward-until predicate next-proc)
+  (iter-forward-while (lambda (value) (not (predicate value))) next-proc))
+
 
 ;; retourne une liste de string de toutes les weeks
 (define (list-weeks read-line-iter)
@@ -95,23 +108,46 @@
 	'()
 	read-line-iter)))
 
+(define (file-contains-week? filename week-name)
+  (let-values (((read-line-iter close-file) (make-iter-read-file filename)))
+	(let ((ret (iter-forward-until
+				(lambda (line)
+				   (string=? line (string-append "* " week-name)))
+				read-line-iter)))
+	  (close-file)
+	  ret)))
+
+
+
+
+
 
 
 ;; retourne la liste des lignes qui composent cette week dans le
 ;; fichier.  exclus la déclaration de la week et la déclaration de
 ;; la week suivante (exclus les lignes commençant par "* ").
-(define (get-week all-lines week-name)
-  (let find-week-loop ((current-line-cons all-lines))
-	(cond
-	 ((null? current-line-cons) '())
-	 ((string=? (string-append "* " week-name) (car current-line-cons))
-		(begin
-		  (let extract-week-loop ((current-line-cons (cdr current-line-cons)))
-			(if (or (null? current-line-cons) (string-match "^\\* .*$" (car current-line-cons)))
-				'()
-				(cons (car current-line-cons) (extract-week-loop (cdr current-line-cons)))))))
-	 (else
-	  (find-week-loop (cdr current-line-cons))))))
+(define (get-week filename week-name)
+  (if (not (file-contains-week? filename week-name))
+	  #f
+	  (let-values (((read-line-iter close-file) (make-iter-read-file filename)))
+		(let ((reversed-week-lines '()))
+		  (iter-forward-until
+		   (lambda (current-line)
+			 (string=? current-line (string-append "* " week-name)))
+		   read-line-iter)
+
+		  (iter-forward-until
+		   (lambda (current-line)
+			 (if (string-prefix? "* " current-line)
+				 (begin #t)
+				 (begin
+				   (set! reversed-week-lines (cons current-line reversed-week-lines))
+				   #f)))
+		   read-line-iter)
+
+		  (close-file)
+		  (reverse reversed-week-lines)))))
+
 
 
 ;; retourne un section dans une semaine (délimité par une ligne
@@ -215,7 +251,7 @@
 	(exit 1))
   (let ((filepath (car args))
 		(week-name (cadr args)))
-	(let ((week-lines (get-week (read-whole-file filepath) week-name)))
+	(let ((week-lines (get-week filepath week-name)))
 	  (display "==== ")
 	  (display week-name)
 	  (newline)
