@@ -4,6 +4,8 @@
 
 ;; TODO: tester les builtin de parsing d'option avec guile
 
+;; TODO: regarder les iterator/generator en srfi ou rnrs
+
 
 (use-modules
  (ice-9 rdelim)
@@ -35,18 +37,6 @@
 			(display (car current-line-cons))
 			(newline))
 		  (loop (cdr current-line-cons))))))
-
-
-;; ;; retourne toutes les lignes du fichier en une liste de string
-;; (define (read-whole-file filename)
-;;   (let ((file-port (open-input-file filename)))
-;; 	(let loop ()
-;; 	  (let ((line (read-line file-port)))
-;; 		(if (eof-object? line)
-;; 			(begin
-;; 			  (close-port file-port)
-;; 			  '())
-;; 			(cons line (loop)))))))
 
 
 (define (make-iter-read-file filename)
@@ -101,6 +91,12 @@
 		  ret))
 	'()
 	read-line-iter)))
+
+(define (list-weeks-from-file filepath)
+  (let-values (((read-line-iter close-file) (make-iter-read-file filepath)))
+	(let ((ret (list-weeks read-line-iter)))
+	  (close-file)
+	  ret)))
 
 (define (file-contains-week? filename week-name)
   (let-values (((read-line-iter close-file) (make-iter-read-file filename)))
@@ -198,23 +194,21 @@
   (let ((reversed-args '("group" "cbbluememento2")))
 	(let-values (((read-line-iter) (make-iter-read-list section-lines)))
 	  (let ((is-first-time? #t)
-			   (period-name #f))
+			(period-name #f))
 		(iter-fold
 		 (lambda (current-line _)
 		   (cond
 			;; MAYBE TODO: mettre un warning si les minutes dépasse 59
 			((string-match "^ *- [0-9]?[0-9]:[0-9][0-9] *$" current-line)
 			 (let ((extracted-time (match:substring
-									 (string-match "^ *- ([0-9]?[0-9]:[0-9][0-9]) *$"
-												   current-line) 1)))
+									(string-match "^ *- ([0-9]?[0-9]:[0-9][0-9]) *$"
+												  current-line) 1)))
 			   (if is-first-time?
-				   (begin
-					 (set! reversed-args (cons "-s" reversed-args))
-					 (set! reversed-args (cons extracted-time reversed-args)))
-				   (begin
-					 (set! reversed-args (cons "-z" reversed-args))
-					 (set! reversed-args (cons (or period-name "noname") reversed-args))
-					 (set! reversed-args (cons extracted-time reversed-args)))))
+				   (set! reversed-args (cons* extracted-time "-s" reversed-args))
+				   (set! reversed-args (cons* extracted-time
+											  (or period-name "noname")
+											  "-z"
+											  reversed-args))))
 			 
 			 (set! is-first-time? #f)
 			 (set! period-name #f))
@@ -257,16 +251,33 @@
 	(exit 1))
   (let ((filepath (car args))
 		(week-name (cadr args)))
+	(assert-file-exists filepath)
 	(if (not (file-contains-week? filepath week-name))
 		(begin
 		  (display (format #f "La semaine \"~a\" n'existe pas.\n" week-name))
 		  (exit 1))
 		(begin
 		  (let ((week-lines (get-week filepath week-name)))
-	  (display "==== ")
-	  (display week-name)
-	  (newline)
-	  (autocalc-week week-lines))))))
+			(display "==== ")
+			(display week-name)
+			(newline)
+			(autocalc-week week-lines))))))
+
+(define (command-autocalc-all . args)
+  ;; TODO: réécrire pour ne pas être quadratique, si j'en ai besoin un
+  ;; jour.
+  (unless (>= (length args) 1)
+	(display "You must provide a file.\n")
+	(exit 1))
+  (let ((filepath (car args)))
+	(assert-file-exists filepath)
+	(for-each
+	 (lambda (week-name)
+	   (display "==== ")
+	   (display week-name)
+	   (newline)
+	   (autocalc-week (get-week filepath week-name)))
+	 (list-weeks-from-file filepath))))
 
 
 (define (main . _)
@@ -302,7 +313,9 @@
 		 ((string=? command "list")
 		  (apply command-list command-args))
 		 ((string=? command "autocalc")
-		  (apply command-autocalc command-args))
+		  (if opt-all
+			  (apply command-autocalc-all command-args)
+			  (apply command-autocalc command-args)))
 		 (else
 		  (display (format #f "Unknown command: ~a\n" command))
 		  (exit 1))))))))
