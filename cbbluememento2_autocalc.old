@@ -1,0 +1,408 @@
+#!/bin/bash
+
+
+
+# SCRIPT_PATH=$(realpath "$0");
+
+CBBLUEMEMENTO2_COMMAND="cbbluememento2";
+
+
+
+
+
+
+# la raison pourquoi ces fonctionnalités sont dans un script différent
+# du script principale sont que ma notation de mes heures de travail
+# est spécifique à moi et que le bash ici sera probablement de moin
+# bonne qualité.
+
+
+
+
+help() {
+	cat <<HELP;
+SYNOPSIS
+
+	$(basename "$0") <commande> [<option>]...
+
+DESCRIPTION
+
+	Prend un ficheir .org qui est dans mon format pour noter mes
+	heures, lit les semaines et les jours de la semaine, et calcule la
+	somme de chaque "groupe" de chaque jours automatiquement.
+
+COMMANDES
+
+	autocalc <fichier> <semaines>...
+	autocalc <fichier> --all
+
+		Automatiquement calculer les semaines indiqués.  Si le nom
+		d'une semaine contient un espace ou d'autres caractères
+		spéciaux, n'oubliez pas de quoter.
+
+	list <fichier>
+
+		Lister les semaines existantes dans le fichier.
+
+HELP
+}
+
+
+quit_because() {
+	local code=$1;
+	shift;
+    >&2 echo "$@";
+	exit "$code";
+}
+
+
+
+# first pass to separate combined options (-asdf becomes -a -s -d -f)
+trailing_args=();
+while (($#)); do
+	arg=$1;
+	shift;
+	case "$arg" in
+		(--?*)
+			trailing_args+=("$arg");
+			;;
+		(--)
+			trailing_args+=(--);
+			break;
+			;;
+		(-?*)
+			for letter in $(echo "${arg#-}" | grep -o .); do
+				trailing_args+=("-$letter");
+			done;
+			;;
+		(*)
+			trailing_args+=("$arg");
+			;;
+	esac;
+done;
+set -- "${trailing_args[@]}" "$@";
+
+
+
+opt_all=0;
+
+
+trailing_args=();
+while (($#)); do
+	arg=$1;
+	shift;
+	case "$arg" in
+		(-h|--help)
+			help;
+			exit 0;
+			;;
+		(--all)
+			opt_all=1;
+			;;
+		(--)
+			break;
+			;;
+		(-*)
+			>&2 echo "Unknown option: $arg";
+			exit 1;
+			;;
+		(*)
+			trailing_args+=("$arg");
+			;;
+	esac;
+done;
+set -- "${trailing_args[@]}" "$@";
+unset arg letter;
+
+
+
+
+commands=(
+	help
+	autocalc
+	list
+);
+
+
+reverse_list_to_ptr() {
+	local -n ptr=$1;
+	shift;
+	# le restant des arguments est le contenu de la liste qu'il faut
+	# inverser à l'intérieur de la variable qu'on a reçu en premier
+	# argument.
+
+	ptr=();
+	while (($#)); do
+		ptr=("$1" "${ptr[@]}");
+		shift;
+	done;
+}
+
+
+# pop_last_of_ptr() {
+# 	local -n ptr=$1;
+
+# 	set -- "${ptr[@]}";
+# 	ptr=();
+# 	while (($# > 1)); do
+# 		ptr+=("$1");
+# 		shift;
+# 	done;
+# }
+
+pop_first_of_ptr() {
+	local -n ptr=$1;
+	local count=${2:-1};
+
+	set -- "${ptr[@]}";
+	shift "$count";
+	ptr=("$@");
+}
+
+push_to_ptr() {
+	local -n ptr=$1;
+	local value=$2;
+
+	ptr=("$value" "${ptr[@]}");
+}
+
+
+
+
+# test si stdin a une ligne qui commence par le texte donné
+test_has_line_begin() {
+	local str=$1;
+	shift;
+
+	local line;
+	while IFS="" read -r line || [ -n "$line" ]; do
+		if [[ "$line" == "$str"* ]]; then
+			return 0;
+		fi;
+	done;
+
+	return 1;
+}
+
+
+test_semaine_has_section() {
+	local hfile=$1;
+	local semaine_name=$2;
+	local section_name=$3;
+	shift 3;
+
+	get_semaine "$hfile" "$semaine_name" | \
+		test_has_line_begin "** $section_name";	
+}
+
+
+
+# printer le stdin, d'une ligne qui commence par beg jusqu'à la ligne
+# qui termine par end, excluant les ligne beg et end elles-mêmes.
+cat_from_to_begin() {
+	local beg=$1;
+	local end=$2;
+	shift 2;
+
+	local line;
+	while IFS="" read -r line; do
+		[[ "$line" == "$beg"* ]] && break;
+	done;
+	while IFS="" read -r line; do
+		[[ "$line" == "$end"* ]] && break;
+		printf "%s\n" "$line";
+	done;
+}
+
+
+
+get_semaine_section() {
+	local hfile=$1;
+	local semaine_name=$2;
+	local section_name=$3;
+	shift 3;
+
+	get_semaine "$hfile" "$semaine_name" | cat_from_to_begin "** $section_name" "** ";
+}
+
+
+get_semaine() {
+	local hfile=$1;
+	local semaine_name=$2;
+	shift 2;
+
+	cat "$hfile" | cat_from_to_begin "* $semaine_name" "* ";
+}
+
+
+
+compute_semaine_section() {
+	local hfile=$1;
+	local semaine_name=$2;
+	local section_name=$3;
+	shift 3;
+
+    local section_text=$(get_semaine_section "$hfile" "$semaine_name" "$section_name");
+
+	# sed <<<"$section_text" "s/^/;/";
+
+
+	# local time_line_regex="- [0-9]?[0-9]:[0-5][0-9]\$";
+	local time_line_regex="^ *- [0-9]?[0-9]:[0-5][0-9]\$";
+
+	local times=(
+		$(egrep <<<"$section_text" -- "$time_line_regex" | awk '{ print $2 }')
+	);
+
+    local start_time=${times[0]};
+	pop_first_of_ptr times;
+
+	local sub_args=(group -s "$start_time");
+
+	local zone;
+	for time in "${times[@]}"; do
+
+		zone=$(
+			grep <<<"$section_text" -B 1000 -- "^ *- $time" | \
+			    tac | \
+				egrep -m 2 -B 1000 -- "$time_line_regex" | \
+				egrep -v "$time_line_regex" | \
+				tac | \
+				grep -m 1 "^ *- " | \
+				awk '{ print $2; }'
+			);
+		# echo "====---- $zone";
+
+		sub_args+=(-z "$zone" "$time");
+
+	done;
+
+	"$CBBLUEMEMENTO2_COMMAND" "${sub_args[@]}";
+	
+}
+
+
+
+
+push_file_weeks_to_ptr() {
+	local -n ptr=$1;
+	local hfile=$2;
+	shift 2;
+
+	# ptr doit déjà être une liste.
+
+	local line;
+	while IFS="" read -r line || [ -n "$line" ]; do
+		ptr=(
+			"${ptr[@]}"
+			"${line#'* '}"
+		);
+	done < <(cat "$hfile" | grep "^\* ");
+	
+}
+
+
+
+
+command_autocalc() {
+	# WARNING: tout les "nom" de semaine DOIVENT êtres unique.
+
+	# le fichier est organisé en premier par des semaines (lignes qui
+	# commencent par "* "). ENSUITE c'est séparé en section
+	# (lignes qui commencent par "** ").
+
+	(($# >= 1)) || quit_because 1 "You must provide a file.";
+	
+	local hfile=$1;
+	shift;
+
+	[ -f "$hfile" ] ||
+		quit_because 1 "The file '$hfile' doesn't exist.";
+
+
+	local semaine_names=();
+	if ((opt_all)); then
+		push_file_weeks_to_ptr semaine_names "$hfile";
+	else
+		semaine_names=("$@");
+	fi;
+
+	# for asdf in "${semaine_names[@]}"; do
+	# 	echo "$asdf";
+	# done;
+	# return 0;
+
+	for semaine in "${semaine_names[@]}"; do
+		echo "==== $semaine";
+
+		for section in special samedi dimanche lundi mardi mercredi jeudi vendredi; do
+
+			test_semaine_has_section "$hfile" "$semaine" "$section" || continue;
+
+			echo "==== ==== $section";
+
+			if [ "$section" == special ]; then
+
+				true;
+				
+			else
+				
+				# get_semaine_section "$hfile" $semaine $section;
+				compute_semaine_section "$hfile" "$semaine" "$section";
+
+				echo;
+
+			fi;
+		done;
+		echo;
+		
+	done;
+	
+}
+
+command_list() {
+	local hfile=$1;
+	shift;
+
+	local semaines=();
+	push_file_weeks_to_ptr semaines "$hfile";
+
+	local s;
+	for s in "${semaines[@]}"; do
+		printf "%s\n" "$s";
+	done;
+}
+
+
+command_help() {
+	help
+}
+
+
+main() {
+	if (($# < 1)); then
+		quit_because 1 "No command provided. See --help.";
+	fi;
+
+	local command=$1;
+	shift;
+
+	local cmd;
+	for cmd in "${commands[@]}"; do
+		if [ "$cmd" == "$command" ]; then
+			"command_$cmd" "$@";
+			return $?;
+		fi;
+	done;
+
+	quit_because 1 "Unknown command: $command";
+}
+
+
+
+main "$@";
+
+
+
+
+

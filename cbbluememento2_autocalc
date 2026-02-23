@@ -1,406 +1,346 @@
-#!/bin/bash
+#!/bin/guile \
+--auto-compile -e main -s
+!#
+
+;; TODO: tester les builtin de parsing d'option avec guile
+
+;; TODO: regarder les iterator/generator en srfi ou rnrs
+
+
+(use-modules
+ (ice-9 rdelim)
+ (ice-9 regex)
+ (ice-9 binary-ports)
+ (srfi srfi-11))
 
 
 
-# SCRIPT_PATH=$(realpath "$0");
+(define (print-help)
+  (display "SYNOPSIS
 
-CBBLUEMEMENTO2_COMMAND="cbbluememento2";
-
-
-
-
-
-
-# la raison pourquoi ces fonctionnalités sont dans un script différent
-# du script principale sont que ma notation de mes heures de travail
-# est spécifique à moi et que le bash ici sera probablement de moin
-# bonne qualité.
-
-
-
-
-help() {
-	cat <<HELP;
-SYNOPSIS
-
-	$(basename "$0") <commande> [<option>]...
+        cbbluememento2_autocalc <commande> [<option>]...
 
 DESCRIPTION
 
-	Prend un ficheir .org qui est dans mon format pour noter mes
-	heures, lit les semaines et les jours de la semaine, et calcule la
-	somme de chaque "groupe" de chaque jours automatiquement.
+        Prend un ficheir .org qui est dans mon format pour noter mes
+        heures, lit les semaines et les jours de la semaine, et calcule la
+        somme de chaque \"groupe\" de chaque jours automatiquement.
 
 COMMANDES
 
-	autocalc <fichier> <semaines>...
-	autocalc <fichier> --all
-
-		Automatiquement calculer les semaines indiqués.  Si le nom
-		d'une semaine contient un espace ou d'autres caractères
-		spéciaux, n'oubliez pas de quoter.
-
-	list <fichier>
-
-		Lister les semaines existantes dans le fichier.
-
-HELP
-}
-
-
-quit_because() {
-	local code=$1;
-	shift;
-    >&2 echo "$@";
-	exit "$code";
-}
-
-
-
-# first pass to separate combined options (-asdf becomes -a -s -d -f)
-trailing_args=();
-while (($#)); do
-	arg=$1;
-	shift;
-	case "$arg" in
-		(--?*)
-			trailing_args+=("$arg");
-			;;
-		(--)
-			trailing_args+=(--);
-			break;
-			;;
-		(-?*)
-			for letter in $(echo "${arg#-}" | grep -o .); do
-				trailing_args+=("-$letter");
-			done;
-			;;
-		(*)
-			trailing_args+=("$arg");
-			;;
-	esac;
-done;
-set -- "${trailing_args[@]}" "$@";
-
-
-
-opt_all=0;
-
-
-trailing_args=();
-while (($#)); do
-	arg=$1;
-	shift;
-	case "$arg" in
-		(-h|--help)
-			help;
-			exit 0;
-			;;
-		(--all)
-			opt_all=1;
-			;;
-		(--)
-			break;
-			;;
-		(-*)
-			>&2 echo "Unknown option: $arg";
-			exit 1;
-			;;
-		(*)
-			trailing_args+=("$arg");
-			;;
-	esac;
-done;
-set -- "${trailing_args[@]}" "$@";
-unset arg letter;
-
-
-
-
-commands=(
-	help
-	autocalc
-	list
-);
-
-
-reverse_list_to_ptr() {
-	local -n ptr=$1;
-	shift;
-	# le restant des arguments est le contenu de la liste qu'il faut
-	# inverser à l'intérieur de la variable qu'on a reçu en premier
-	# argument.
-
-	ptr=();
-	while (($#)); do
-		ptr=("$1" "${ptr[@]}");
-		shift;
-	done;
-}
+        autocalc <fichier> <semaine>
+        autocalc <fichier> --all
+
+                Automatiquement calculer la semaine indiquée.  Si le
+                nom d'une semaine contient un espace ou d'autres
+                caractères spéciaux, n'oubliez pas de quoter.
+
+        list <fichier>
 
+                Lister les semaines existantes dans le fichier.
+")
+  (newline))
+
+
+(define (assert-file-exists filepath)
+  (unless (access? filepath F_OK)
+	(display (format #f "Le fichier n'existe pas: \"~a\"\n" filepath))
+	(exit 1)))
+
+
+
+
+(define (print-list-to-stdout lines)
+  (let loop ((current-line-cons lines))
+	(if (null? current-line-cons)
+		#f
+		(begin
+		  (when (string? (car current-line-cons))
+			(display (car current-line-cons))
+			(newline))
+		  (loop (cdr current-line-cons))))))
+
+
+(define (make-iter-read-file filename)
+  (let ((file-port (open-input-file filename)))
+	(values
+	 (lambda ()
+	   (read-line file-port))
+	 (lambda ()
+	   (close-port file-port)))))
+
+(define (make-iter-read-list list)
+  (let ((next-cons list))
+	(values
+	 (lambda ()
+	   (if (null? next-cons)
+		   (eof-object)
+		   (let ((ret (car next-cons)))
+			 (set! next-cons (cdr next-cons))
+			 ret))))))
+
+
+;; proc est appelé avec (elem, previous).
+(define (iter-fold proc init next-proc)
+  (let loop ((ret init))
+	(let ((val (next-proc)))
+	  (if (eof-object? val)
+		  (begin ret)
+		  (begin
+			(loop (proc val ret)))))))
+
+;; returns false si la fin de l'itérateur a été atteint
+(define (iter-forward-while predicate next-proc)
+  (let loop ()
+	(let ((current-value (next-proc)))
+	  (if (eof-object? current-value)
+		  #f
+		  (if (predicate current-value)
+			  (loop)
+			  #t)))))
+
+(define (iter-forward-until predicate next-proc)
+  (iter-forward-while (lambda (value) (not (predicate value))) next-proc))
+
+
+;; retourne une liste de string de toutes les weeks
+(define (list-weeks read-line-iter)
+  (reverse
+   (iter-fold
+	(lambda (current-line ret)
+	  (if (string-prefix? "* " current-line)
+		  (cons (string-drop current-line 2) ret)
+		  ret))
+	'()
+	read-line-iter)))
+
+(define (list-weeks-from-file filepath)
+  (let-values (((read-line-iter close-file) (make-iter-read-file filepath)))
+	(let ((ret (list-weeks read-line-iter)))
+	  (close-file)
+	  ret)))
+
+(define (file-contains-week? filename week-name)
+  (let-values (((read-line-iter close-file) (make-iter-read-file filename)))
+	(let ((ret (iter-forward-until
+				(lambda (line)
+				   (string=? line (string-append "* " week-name)))
+				read-line-iter)))
+	  (close-file)
+	  ret)))
+
 
-# pop_last_of_ptr() {
-# 	local -n ptr=$1;
 
-# 	set -- "${ptr[@]}";
-# 	ptr=();
-# 	while (($# > 1)); do
-# 		ptr+=("$1");
-# 		shift;
-# 	done;
-# }
 
-pop_first_of_ptr() {
-	local -n ptr=$1;
-	local count=${2:-1};
 
-	set -- "${ptr[@]}";
-	shift "$count";
-	ptr=("$@");
-}
 
-push_to_ptr() {
-	local -n ptr=$1;
-	local value=$2;
 
-	ptr=("$value" "${ptr[@]}");
-}
-
-
-
-
-# test si stdin a une ligne qui commence par le texte donné
-test_has_line_begin() {
-	local str=$1;
-	shift;
-
-	local line;
-	while IFS="" read -r line || [ -n "$line" ]; do
-		if [[ "$line" == "$str"* ]]; then
-			return 0;
-		fi;
-	done;
-
-	return 1;
-}
-
-
-test_semaine_has_section() {
-	local hfile=$1;
-	local semaine_name=$2;
-	local section_name=$3;
-	shift 3;
-
-	get_semaine "$hfile" "$semaine_name" | \
-		test_has_line_begin "** $section_name";	
-}
-
-
-
-# printer le stdin, d'une ligne qui commence par beg jusqu'à la ligne
-# qui termine par end, excluant les ligne beg et end elles-mêmes.
-cat_from_to_begin() {
-	local beg=$1;
-	local end=$2;
-	shift 2;
-
-	local line;
-	while IFS="" read -r line; do
-		[[ "$line" == "$beg"* ]] && break;
-	done;
-	while IFS="" read -r line; do
-		[[ "$line" == "$end"* ]] && break;
-		printf "%s\n" "$line";
-	done;
-}
-
-
-
-get_semaine_section() {
-	local hfile=$1;
-	local semaine_name=$2;
-	local section_name=$3;
-	shift 3;
-
-	get_semaine "$hfile" "$semaine_name" | cat_from_to_begin "** $section_name" "** ";
-}
-
-
-get_semaine() {
-	local hfile=$1;
-	local semaine_name=$2;
-	shift 2;
-
-	cat "$hfile" | cat_from_to_begin "* $semaine_name" "* ";
-}
-
-
-
-compute_semaine_section() {
-	local hfile=$1;
-	local semaine_name=$2;
-	local section_name=$3;
-	shift 3;
-
-    local section_text=$(get_semaine_section "$hfile" "$semaine_name" "$section_name");
-
-	# sed <<<"$section_text" "s/^/;/";
-
-
-	# local time_line_regex="- [0-9]?[0-9]:[0-5][0-9]\$";
-	local time_line_regex="^ *- [0-9]?[0-9]:[0-5][0-9]\$";
-
-	local times=(
-		$(egrep <<<"$section_text" -- "$time_line_regex" | awk '{ print $2 }')
-	);
-
-    local start_time=${times[0]};
-	pop_first_of_ptr times;
-
-	local sub_args=(group -s "$start_time");
-
-	local zone;
-	for time in "${times[@]}"; do
-
-		zone=$(
-			grep <<<"$section_text" -B 1000 -- "^ *- $time" | \
-			    tac | \
-				egrep -m 2 -B 1000 -- "$time_line_regex" | \
-				egrep -v "$time_line_regex" | \
-				tac | \
-				grep -m 1 "^ *- " | \
-				awk '{ print $2; }'
-			);
-		# echo "====---- $zone";
-
-		sub_args+=(-z "$zone" "$time");
-
-	done;
-
-	"$CBBLUEMEMENTO2_COMMAND" "${sub_args[@]}";
-	
-}
-
-
-
-
-push_file_weeks_to_ptr() {
-	local -n ptr=$1;
-	local hfile=$2;
-	shift 2;
-
-	# ptr doit déjà être une liste.
-
-	local line;
-	while IFS="" read -r line || [ -n "$line" ]; do
-		ptr=(
-			"${ptr[@]}"
-			"${line#'* '}"
-		);
-	done < <(cat "$hfile" | grep "^\* ");
-	
-}
-
-
-
-
-command_autocalc() {
-	# WARNING: tout les "nom" de semaine DOIVENT êtres unique.
-
-	# le fichier est organisé en premier par des semaines (lignes qui
-	# commencent par "* "). ENSUITE c'est séparé en section
-	# (lignes qui commencent par "** ").
-
-	(($# >= 1)) || quit_because 1 "You must provide a file.";
-	
-	local hfile=$1;
-	shift;
-
-	[ -f "$hfile" ] ||
-		quit_because 1 "The file '$hfile' doesn't exist.";
-
-
-	local semaine_names=();
-	if ((opt_all)); then
-		push_file_weeks_to_ptr semaine_names "$hfile";
-	else
-		semaine_names=("$@");
-	fi;
-
-	# for asdf in "${semaine_names[@]}"; do
-	# 	echo "$asdf";
-	# done;
-	# return 0;
-
-	for semaine in "${semaine_names[@]}"; do
-		echo "==== $semaine";
-
-		for section in special samedi dimanche lundi mardi mercredi jeudi vendredi; do
-
-			test_semaine_has_section "$hfile" "$semaine" "$section" || continue;
-
-			echo "==== ==== $section";
-
-			if [ "$section" == special ]; then
-
-				true;
-				
-			else
-				
-				# get_semaine_section "$hfile" $semaine $section;
-				compute_semaine_section "$hfile" "$semaine" "$section";
-
-				echo;
-
-			fi;
-		done;
-		echo;
-		
-	done;
-	
-}
-
-command_list() {
-	local hfile=$1;
-	shift;
-
-	local semaines=();
-	push_file_weeks_to_ptr semaines "$hfile";
-
-	local s;
-	for s in "${semaines[@]}"; do
-		printf "%s\n" "$s";
-	done;
-}
-
-
-command_help() {
-	help
-}
-
-
-main() {
-	if (($# < 1)); then
-		quit_because 1 "No command provided. See --help.";
-	fi;
-
-	local command=$1;
-	shift;
-
-	local cmd;
-	for cmd in "${commands[@]}"; do
-		if [ "$cmd" == "$command" ]; then
-			"command_$cmd" "$@";
-			return $?;
-		fi;
-	done;
-
-	quit_because 1 "Unknown command: $command";
-}
-
-
-
-main "$@";
+;; retourne la liste des lignes qui composent cette week dans le
+;; fichier.  exclus la déclaration de la week et la déclaration de
+;; la week suivante (exclus les lignes commençant par "* ").
+(define (get-week filename week-name)
+  ;; TODO: optimiser le check ici pour ne pas lire le fichier 2 fois.
+  (if (not (file-contains-week? filename week-name))
+	  #f
+	  (let-values (((read-line-iter close-file) (make-iter-read-file filename)))
+		(let ((reversed-week-lines '()))
+		  (iter-forward-until
+		   (lambda (current-line)
+			 (string=? current-line (string-append "* " week-name)))
+		   read-line-iter)
+
+		  (iter-forward-until
+		   (lambda (current-line)
+			 (if (string-prefix? "* " current-line)
+				 (begin #t)
+				 (begin
+				   (set! reversed-week-lines (cons current-line reversed-week-lines))
+				   #f)))
+		   read-line-iter)
+
+		  (close-file)
+		  (reverse reversed-week-lines)))))
+
+
+
+(define (week-has-section? week-lines section-name)
+  (let-values (((read-line-iter) (make-iter-read-list week-lines)))
+	(iter-forward-until
+	 (lambda (current-line)
+	   (string=? current-line (string-append "** " section-name)))
+	 read-line-iter)))
+
+
+
+;; retourne un section dans une semaine (délimité par une ligne
+;; commençant par "** "). il faut seulement passer les ligne de la
+;; semaine, et non pas tout le fichier.
+(define (get-week-section week-lines section-name)
+  (if (not (week-has-section? week-lines section-name))
+	  #f
+	  (let-values (((read-line-iter) (make-iter-read-list week-lines)))
+		(let ((reversed-section-lines '()))
+		  (iter-forward-until
+		   (lambda (current-line)
+			 (string=? current-line (string-append "** " section-name)))
+		   read-line-iter)
+
+		  (iter-forward-until
+		   (lambda (current-line)
+			 (if (string-prefix? "** " current-line)
+				 (begin #t)
+				 (begin
+				   (set! reversed-section-lines (cons current-line reversed-section-lines))
+				   #f)))
+		   read-line-iter)
+
+		  (reverse reversed-section-lines)))))
+
+
+
+(define (command-list . args)
+  (unless (>= (length args) 1)
+	(display "You must provide a file\n")
+	(exit 1))
+  (let ((filepath (car args)))
+	(assert-file-exists filepath)
+	(let-values (((read-line-iter close-file) (make-iter-read-file filepath)))
+	  (print-list-to-stdout
+	   (list-weeks read-line-iter))
+	  (close-file))))
+
+
+
+
+(define (autocalc-week-section section-lines)
+  (let ((reversed-args '("group" "cbbluememento2")))
+	(let-values (((read-line-iter) (make-iter-read-list section-lines)))
+	  (let ((is-first-time? #t)
+			(period-name #f))
+		(iter-fold
+		 (lambda (current-line _)
+		   (cond
+			;; MAYBE TODO: mettre un warning si les minutes dépasse 59
+			((string-match "^ *- [0-9]?[0-9]:[0-9][0-9] *$" current-line)
+			 (let ((extracted-time (match:substring
+									(string-match "^ *- ([0-9]?[0-9]:[0-9][0-9]) *$"
+												  current-line) 1)))
+			   (if is-first-time?
+				   (set! reversed-args (cons* extracted-time "-s" reversed-args))
+				   (set! reversed-args (cons* extracted-time
+											  (or period-name "noname")
+											  "-z"
+											  reversed-args))))
+			 
+			 (set! is-first-time? #f)
+			 (set! period-name #f))
+
+			;; MAYBE TODO: améliorer les regex ici?
+			((string-match "^ *- .*$" current-line)
+			 (when (not period-name)
+			   (set! period-name
+					 (match:substring (string-match "^ *- ([^ ]*\\b)" current-line)
+									  1)))))
+		   #t)
+		 #t
+		 read-line-iter)
+		(apply system* (reverse reversed-args))
+		(newline)))))
+
+
+(define (autocalc-week week-lines)
+  (for-each
+   (lambda (section-name)
+	 (when (week-has-section? week-lines section-name)
+	   (display "==== ==== ")
+	   (display section-name)
+	   (newline)
+	   (let ((section-lines (get-week-section week-lines section-name)))
+		 (autocalc-week-section section-lines))))
+   '("dimanche"
+	 "lundi"
+	 "mardi"
+	 "mercredi"
+	 "jeudi"
+	 "vendredi"
+	 "samedi")))
+
+
+
+(define (command-autocalc . args)
+  (unless (>= (length args) 2)
+	(display "You must provide a file and a week name\n")
+	(exit 1))
+  (let ((filepath (car args))
+		(week-name (cadr args)))
+	(assert-file-exists filepath)
+	(if (not (file-contains-week? filepath week-name))
+		(begin
+		  (display (format #f "La semaine \"~a\" n'existe pas.\n" week-name))
+		  (exit 1))
+		(begin
+		  (let ((week-lines (get-week filepath week-name)))
+			(display "==== ")
+			(display week-name)
+			(newline)
+			(autocalc-week week-lines))))))
+
+(define (command-autocalc-all . args)
+  ;; TODO: réécrire pour ne pas être quadratique, si j'en ai besoin un
+  ;; jour.
+  (unless (>= (length args) 1)
+	(display "You must provide a file.\n")
+	(exit 1))
+  (let ((filepath (car args)))
+	(assert-file-exists filepath)
+	(for-each
+	 (lambda (week-name)
+	   (display "==== ")
+	   (display week-name)
+	   (newline)
+	   (autocalc-week (get-week filepath week-name)))
+	 (list-weeks-from-file filepath))))
+
+
+(define (main . _)
+  (let ((args (cdr (command-line)))
+		(trailing-args (list))
+		(opt-all #f))
+	(let loop-args ((args-left args))
+	  (unless (null? args-left)
+		(let ((current-arg (car args-left)))
+		  (cond
+		   ((string=? current-arg "--")
+			(set! trailing-args (append trailing-args (cdr args-left)))
+			(loop-args '()))
+		   (else
+			(cond
+			 ((string=? current-arg "--help")
+			  (print-help)
+			  (exit 0))
+			 ((string=? current-arg "--all")
+			  (set! opt-all #t))
+			 (else
+			  (set! trailing-args (append trailing-args (list current-arg)))))
+			(loop-args (cdr args-left)))))))
+
+	(cond
+	 ((<= (length trailing-args) 0)
+	  (display "You must provide a command\n")
+	  (exit 1))
+	 (else
+	  (let ((command (car trailing-args))
+			(command-args (cdr trailing-args)))
+		(cond
+		 ((string=? command "list")
+		  (apply command-list command-args))
+		 ((string=? command "autocalc")
+		  (if opt-all
+			  (apply command-autocalc-all command-args)
+			  (apply command-autocalc command-args)))
+		 (else
+		  (display (format #f "Unknown command: ~a\n" command))
+		  (exit 1))))))))
 
 
 
