@@ -11,7 +11,8 @@
  (ice-9 rdelim)
  (ice-9 regex)
  (ice-9 binary-ports)
- (srfi srfi-11))
+ (srfi srfi-11)
+ (ice-9 match))
 
 
 
@@ -302,47 +303,79 @@ COMMANDES
 	 (list-weeks-from-file filepath))))
 
 
+
+
+(define (make-list-reader l)
+  (let ((current-list l))
+	(values
+	 ;; retourne la quantité d'éléments restant
+	 (lambda ()
+	   (length current-list))
+	 ;; consomme et retourne le prochain élément
+	 (lambda ()
+	   (if (> (length current-list) 0)
+		   (let ((ret (car current-list)))
+			 (set! current-list (cdr current-list))
+			 ret)
+		   #f))
+	 ;; consomme et retourne tout les reste de la liste
+	 (lambda ()
+	   (let ((ret current-list))
+		 (set! current-list '())
+		 ret)))))
+
+
 (define (main . _)
-  (let ((args (cdr (command-line)))
-		(trailing-args (list))
+  (let ((trailing-args '())
 		(opt-all #f))
-	(let loop-args ((args-left args))
-	  (unless (null? args-left)
-		(let ((current-arg (car args-left)))
-		  (cond
-		   ((string=? current-arg "--")
-			(set! trailing-args (append trailing-args (cdr args-left)))
-			(loop-args '()))
-		   (else
-			(cond
-			 ((string=? current-arg "--help")
-			  (print-help)
-			  (exit 0))
-			 ((string=? current-arg "--all")
-			  (set! opt-all #t))
-			 (else
-			  (set! trailing-args (append trailing-args (list current-arg)))))
-			(loop-args (cdr args-left)))))))
+	(let-values (((args-left-count next-arg rest) (make-list-reader (command-line))))
+	  (next-arg)
+	  (while (> (args-left-count) 0)
+			 (let ((current-arg (next-arg)))
+			   (match current-arg
+				 ((or "-h" "--help")
+				  (print-help)
+				  (exit 0))
+				 ("--all"
+				  (set! opt-all #t))
+				 ("--"
+				  (set! trailing-args (append trailing-args (rest))))
+				 (else
+				  (set! trailing-args (append trailing-args (list current-arg))))))))
+	;; (write trailing-args)
 
-	(cond
-	 ((<= (length trailing-args) 0)
-	  (display "You must provide a command\n")
-	  (exit 1))
-	 (else
-	  (let ((command (car trailing-args))
-			(command-args (cdr trailing-args)))
-		(cond
-		 ((string=? command "list")
-		  (apply command-list command-args))
-		 ((string=? command "autocalc")
-		  (if opt-all
-			  (apply command-autocalc-all command-args)
-			  (apply command-autocalc command-args)))
-		 (else
-		  (display (format #f "Unknown command: ~a\n" command))
-		  (exit 1))))))))
-
-
-
-
+	(match trailing-args
+	  (("help" _ ...)
+	   (print-help))
+	  (((or "autocalc" "calc") filepath week-name)
+	   (command-autocalc filepath week-name))
+	  (((or "autocalc" "calc") filepath)
+	   (unless opt-all
+		 (display "You must provide a week name.\n" (current-error-port))
+		 (exit 1))
+	   (command-autocalc-all filepath))
+	  (((or "autocalc" "calc"))
+	   (display "You need to provide a file and a week name.\n" (current-error-port))
+	   (exit 1))
+	  (("list" filepath)
+	   (command-list filepath))
+	  (("list" _ _ ..1)
+	   (display "The list command accepts one file.\n" (current-error-port))
+	   (exit 1))
+	  (("list")
+	   (display "You need to provide a file.\n" (current-error-port))
+	   (exit 1))
+	  ((command)
+	   (display "Unknown command: ")
+	   (display command)
+	   (newline)
+	   (exit 1))
+	  (()
+	   (display "You need to provide a command.\n" (current-error-port))
+	   (exit 1))
+	  (else
+	   (display "Unknown command: ")
+	   (write trailing-args)
+	   (newline)
+	   (exit 1)))))
 
